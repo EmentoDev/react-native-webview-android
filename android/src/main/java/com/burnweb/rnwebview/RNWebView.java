@@ -33,8 +33,12 @@ class RNWebView extends WebView implements LifecycleEventListener {
     protected class EventWebClient extends WebViewClient {
         public boolean shouldOverrideUrlLoading(WebView view, String url){
             if(!url.startsWith("http") && !url.startsWith("about") && !url.startsWith("file:")){
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                view.getContext().startActivity(intent);
+                try {
+                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                    view.getContext().startActivity(intent);
+                } catch (ActivityNotFoundException ex) {
+                    System.err.println(ex.getMessage());
+                }
 
                 return true;
             }

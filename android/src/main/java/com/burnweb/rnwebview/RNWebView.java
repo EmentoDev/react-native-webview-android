@@ -13,6 +13,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.content.Intent;
+import android.content.ActivityNotFoundException;
 
 import com.facebook.react.common.SystemClock;
 import com.facebook.react.bridge.LifecycleEventListener;

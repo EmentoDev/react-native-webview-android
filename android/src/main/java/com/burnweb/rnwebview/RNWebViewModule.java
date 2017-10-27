@@ -276,6 +276,7 @@ public class RNWebViewModule extends ReactContextBaseJavaModule implements Activ
 
             // Check that the response is a good one
             if (resultCode == Activity.RESULT_OK) {
+                Log.e(REACT_CLASS, "WEBVIEW DATA: " + data);
                 if (data == null) {
                     // If there is no data, then we may have taken a photo
                     if (mCameraPhotoPath != null) {
@@ -283,10 +284,11 @@ public class RNWebViewModule extends ReactContextBaseJavaModule implements Activ
                     }
                 } else {
                     String dataString = data.getDataString();
-                    Toast.makeText(getCurrentActivity().getBaseContext(), dataString, Toast.LENGTH_LONG).show();
 
                     if (dataString != null) {
                       results = new Uri[]{Uri.parse(dataString)};
+                    } else if (Build.VERSION.SDK_INT >= 26 && mCameraPhotoPath != null) {
+                      results = new Uri[]{Uri.parse(mCameraPhotoPath)};
                     }
                 }
             }

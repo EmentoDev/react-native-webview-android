@@ -16,6 +16,15 @@ import android.webkit.JsResult;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 
+import android.widget.Toast;
+import android.provider.MediaStore;
+import android.os.Parcelable;
+import android.os.Environment;
+import java.io.File;
+import java.io.*;
+import java.util.Date;
+import java.text.SimpleDateFormat;
+
 import com.facebook.react.bridge.ActivityEventListener;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -26,6 +35,9 @@ public class RNWebViewModule extends ReactContextBaseJavaModule implements Activ
     public static final String REACT_CLASS = "RNWebViewAndroidModule";
 
     private RNWebViewPackage aPackage;
+    private Uri mCapturedImageURI = null;
+    private String mCameraPhotoPath;
+    private ValueCallback<Uri[]> mFilePathCallback;
 
     /* FOR UPLOAD DIALOG */
     private final static int REQUEST_SELECT_FILE = 1001;
@@ -84,13 +96,44 @@ public class RNWebViewModule extends ReactContextBaseJavaModule implements Activ
 
         mUploadMessage = uploadMsg;
 
-        if(acceptType == null || acceptType.isEmpty()) {
+        if (acceptType == null || acceptType.isEmpty()) {
             acceptType = "*/*";
         }
 
-        Intent intentChoose = new Intent(Intent.ACTION_GET_CONTENT);
-        intentChoose.addCategory(Intent.CATEGORY_OPENABLE);
-        intentChoose.setType(acceptType);
+
+        // NEW PART
+        // Create AndroidExampleFolder at sdcard
+        File imageStorageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "html-files");
+
+        if (!imageStorageDir.exists()) {
+          // Create AndroidExampleFolder at sdcard
+          imageStorageDir.mkdirs();
+        }
+
+        // Create camera captured image file path and name
+        File file = new File(imageStorageDir + File.separator + "IMG_" + String.valueOf(System.currentTimeMillis()) + ".jpg");
+
+        mCapturedImageURI = Uri.fromFile(file);
+
+        // Camera capture image intent
+        final Intent captureIntent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+        captureIntent.putExtra(MediaStore.EXTRA_OUTPUT, mCapturedImageURI);
+        // NEW PART END
+
+
+        Intent filePicker = new Intent(Intent.ACTION_GET_CONTENT);
+        filePicker.addCategory(Intent.CATEGORY_OPENABLE);
+        filePicker.setType(acceptType);
+
+
+        // NEW PART
+        // Create file chooser intent
+        Intent chooserIntent = Intent.createChooser(filePicker, "Image Chooser");
+
+        // Set camera intent to file chooser
+        chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Parcelable[] { captureIntent });
+        // NEW PART
+
 
         Activity currentActivity = getCurrentActivity();
         if (currentActivity == null) {
@@ -99,10 +142,11 @@ public class RNWebViewModule extends ReactContextBaseJavaModule implements Activ
         }
 
         try {
-            currentActivity.startActivityForResult(intentChoose, REQUEST_SELECT_FILE_LEGACY, new Bundle());
+            currentActivity.startActivityForResult(chooserIntent, REQUEST_SELECT_FILE_LEGACY, new Bundle());
         } catch (ActivityNotFoundException e) {
             Log.e(REACT_CLASS, "No context available");
             e.printStackTrace();
+            Toast.makeText(currentActivity.getBaseContext(), "Exception:" + e, Toast.LENGTH_LONG).show();
 
             if (mUploadMessage != null) {
                 mUploadMessage.onReceiveValue(null);
@@ -119,12 +163,12 @@ public class RNWebViewModule extends ReactContextBaseJavaModule implements Activ
     public boolean startFileChooserIntent(ValueCallback<Uri[]> filePathCallback, Intent intentChoose) {
         Log.d(REACT_CLASS, "Open new file dialog");
 
-        if (mUploadMessageArr != null) {
-            mUploadMessageArr.onReceiveValue(null);
-            mUploadMessageArr = null;
-        }
-
-        mUploadMessageArr = filePathCallback;
+        // if (mUploadMessageArr != null) {
+        //     mUploadMessageArr.onReceiveValue(null);
+        //     mUploadMessageArr = null;
+        // }
+        //
+        // mUploadMessageArr = filePathCallback;
 
         Activity currentActivity = getCurrentActivity();
         if (currentActivity == null) {
@@ -132,11 +176,63 @@ public class RNWebViewModule extends ReactContextBaseJavaModule implements Activ
             return false;
         }
 
+
+        // NEW CODE
+        // Double check that we don't have any existing callbacks
+        if (mFilePathCallback != null) {
+          mFilePathCallback.onReceiveValue(null);
+        }
+
+        mFilePathCallback = filePathCallback;
+
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+
+        if (takePictureIntent.resolveActivity(currentActivity.getPackageManager()) != null) {
+          // Create the File where the photo should go
+          File photoFile = null;
+
+          try {
+            photoFile = createImageFile();
+            takePictureIntent.putExtra("PhotoPath", mCameraPhotoPath);
+          } catch (IOException ex) {
+            // Error occurred while creating the File
+            Log.e(REACT_CLASS, "Unable to create Image File", ex);
+            Toast.makeText(currentActivity.getBaseContext(), "Unable to create Image File:" + ex, Toast.LENGTH_LONG).show();
+          }
+
+          // Continue only if the File was successfully created
+          if (photoFile != null) {
+            mCameraPhotoPath = "file:" + photoFile.getAbsolutePath();
+            takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(photoFile));
+          } else {
+            takePictureIntent = null;
+          }
+        }
+
+        // Intent contentSelectionIntent = new Intent(Intent.ACTION_GET_CONTENT);
+        // contentSelectionIntent.addCategory(Intent.CATEGORY_OPENABLE);
+        // contentSelectionIntent.setType("image/*");
+
+        Intent[] intentArray;
+
+        if (takePictureIntent != null) {
+          intentArray = new Intent[]{takePictureIntent};
+        } else {
+          intentArray = new Intent[0];
+        }
+
+        Intent chooserIntent = new Intent(Intent.ACTION_CHOOSER);
+        chooserIntent.putExtra(Intent.EXTRA_INTENT, intentChoose);
+        chooserIntent.putExtra(Intent.EXTRA_TITLE, "Image Chooser");
+        chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, intentArray);
+        // NEW CODE END
+
         try {
-            currentActivity.startActivityForResult(intentChoose, REQUEST_SELECT_FILE, new Bundle());
+            currentActivity.startActivityForResult(chooserIntent, REQUEST_SELECT_FILE, new Bundle());
         } catch (ActivityNotFoundException e) {
             Log.e(REACT_CLASS, "No context available");
             e.printStackTrace();
+            Toast.makeText(currentActivity.getBaseContext(), "No context available:" + e, Toast.LENGTH_LONG).show();
 
             if (mUploadMessageArr != null) {
                 mUploadMessageArr.onReceiveValue(null);
@@ -152,16 +248,51 @@ public class RNWebViewModule extends ReactContextBaseJavaModule implements Activ
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == REQUEST_SELECT_FILE_LEGACY) {
             if (mUploadMessage == null) return;
+            if (mCapturedImageURI == null) return;
 
-            Uri result = ((data == null || resultCode != Activity.RESULT_OK) ? null : data.getData());
+            if (resultCode == Activity.RESULT_OK) {
+              Uri result = (data == null ? mCapturedImageURI : data.getData());
 
-            mUploadMessage.onReceiveValue(result);
+              mUploadMessage.onReceiveValue(result);
+            } else {
+              Uri result = null;
+
+              mUploadMessage.onReceiveValue(result);
+            }
+
             mUploadMessage = null;
+            mCapturedImageURI = null;
         } else if (requestCode == REQUEST_SELECT_FILE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            if (mUploadMessageArr == null) return;
+            // if (mUploadMessageArr == null) return;
+            //
+            // mUploadMessageArr.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+            // mUploadMessageArr = null;
 
-            mUploadMessageArr.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
-            mUploadMessageArr = null;
+            if (requestCode != REQUEST_SELECT_FILE || mFilePathCallback == null) {
+                return;
+            }
+
+            Uri[] results = null;
+
+            // Check that the response is a good one
+            if (resultCode == Activity.RESULT_OK) {
+                if (data == null) {
+                    // If there is no data, then we may have taken a photo
+                    if (mCameraPhotoPath != null) {
+                      results = new Uri[]{Uri.parse(mCameraPhotoPath)};
+                    }
+                } else {
+                    String dataString = data.getDataString();
+                    Toast.makeText(getCurrentActivity().getBaseContext(), dataString, Toast.LENGTH_LONG).show();
+
+                    if (dataString != null) {
+                      results = new Uri[]{Uri.parse(dataString)};
+                    }
+                }
+            }
+
+            mFilePathCallback.onReceiveValue(results);
+            mFilePathCallback = null;
         }
     }
 
@@ -171,4 +302,17 @@ public class RNWebViewModule extends ReactContextBaseJavaModule implements Activ
 
     public void onNewIntent(Intent intent) {}
 
+    private File createImageFile() throws IOException {
+        // Create an image file name
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        File storageDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+        File imageFile = File.createTempFile(
+          imageFileName,  /* prefix */
+          ".jpg",         /* suffix */
+          storageDir      /* directory */
+        );
+
+        return imageFile;
+    }
 }

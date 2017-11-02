@@ -12,6 +12,7 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.JavascriptInterface;
 import android.content.Intent;
 import android.content.ActivityNotFoundException;
 
@@ -30,6 +31,34 @@ class RNWebView extends WebView implements LifecycleEventListener {
     private String baseUrl = "file:///";
     private String injectedJavaScript = null;
     private boolean allowUrlRedirect = false;
+
+    protected static final String BRIDGE_NAME = "__REACT_WEB_VIEW_BRIDGE";
+
+    protected class ReactWebViewBridge {
+      RNWebView mContext;
+
+      ReactWebViewBridge(RNWebView c) {
+        mContext = c;
+      }
+
+      @JavascriptInterface
+      public void postMessage(String message) {
+        mContext.onMessage(message);
+      }
+    }
+
+    protected ReactWebViewBridge createReactWebViewBridge(RNWebView webView) {
+      return new ReactWebViewBridge(webView);
+    }
+
+    public void linkBridge() {
+      loadUrl("javascript:(" +
+        "window.originalPostMessage = window.postMessage," +
+        "window.postMessage = function(data) {" +
+          BRIDGE_NAME + ".postMessage(JSON.stringify(data));" +
+        "}" +
+      ")");
+    }
 
     protected class EventWebClient extends WebViewClient {
         public boolean shouldOverrideUrlLoading(WebView view, String url){
@@ -61,6 +90,8 @@ class RNWebView extends WebView implements LifecycleEventListener {
             if(RNWebView.this.getInjectedJavaScript() != null) {
                 view.loadUrl("javascript:(function() {\n" + RNWebView.this.getInjectedJavaScript() + ";\n})();");
             }
+
+            linkBridge();
         }
 
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
@@ -119,6 +150,9 @@ class RNWebView extends WebView implements LifecycleEventListener {
 
         this.setWebViewClient(new EventWebClient());
         this.setWebChromeClient(getCustomClient());
+
+        // Add javascript interface
+        this.addJavascriptInterface(createReactWebViewBridge(this), BRIDGE_NAME);
     }
 
     public void setCharset(String charset) {
@@ -184,6 +218,11 @@ class RNWebView extends WebView implements LifecycleEventListener {
     public void onDetachedFromWindow() {
         this.loadDataWithBaseURL(this.getBaseUrl(), "<html></html>", "text/html", this.getCharset(), null);
         super.onDetachedFromWindow();
+    }
+
+    @JavascriptInterface
+    public void onMessage(String jsParamaters) {
+        mEventDispatcher.dispatchEvent(new OnMessageEvent(getId(), jsParamaters));
     }
 
 }

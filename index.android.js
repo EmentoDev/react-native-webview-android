@@ -33,7 +33,13 @@ var WebViewAndroid = createClass({
     geolocationEnabled: PropTypes.bool,
     allowUrlRedirect: PropTypes.bool,
     builtInZoomControls: PropTypes.bool,
-    onNavigationStateChange: PropTypes.func
+    onNavigationStateChange: PropTypes.func,
+    onMessage: PropTypes.func
+  },
+  _onMessage: function(event) {
+    if (this.props.onMessage) {
+      this.props.onMessage(event.nativeEvent);
+    }
   },
   _onNavigationStateChange: function(event) {
     if (this.props.onNavigationStateChange) {
@@ -69,7 +75,7 @@ var WebViewAndroid = createClass({
     );
   },
   render: function() {
-    return <RNWebViewAndroid ref={WEBVIEW_REF} {...this.props} onNavigationStateChange={this._onNavigationStateChange} />;
+    return <RNWebViewAndroid ref={WEBVIEW_REF} {...this.props} onNavigationStateChange={this._onNavigationStateChange} onMessage={this._onMessage} />;
   },
   _getWebViewHandle: function() {
     return RN.findNodeHandle(this.refs[WEBVIEW_REF]);

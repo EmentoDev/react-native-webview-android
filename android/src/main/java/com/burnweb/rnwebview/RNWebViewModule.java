@@ -100,8 +100,6 @@ public class RNWebViewModule extends ReactContextBaseJavaModule implements Activ
             acceptType = "*/*";
         }
 
-
-        // NEW PART
         // Create AndroidExampleFolder at sdcard
         File imageStorageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "html-files");
 
@@ -116,24 +114,22 @@ public class RNWebViewModule extends ReactContextBaseJavaModule implements Activ
         mCapturedImageURI = Uri.fromFile(file);
 
         // Camera capture image intent
-        final Intent captureIntent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
-        captureIntent.putExtra(MediaStore.EXTRA_OUTPUT, mCapturedImageURI);
-        // NEW PART END
+        final Intent takePictureIntent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+        takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, mCapturedImageURI);
 
+        // Camera capture video intent
+        Intent takeVideoIntent = new Intent(MediaStore.ACTION_VIDEO_CAPTURE);
 
         Intent filePicker = new Intent(Intent.ACTION_GET_CONTENT);
         filePicker.addCategory(Intent.CATEGORY_OPENABLE);
         filePicker.setType(acceptType);
 
 
-        // NEW PART
         // Create file chooser intent
-        Intent chooserIntent = Intent.createChooser(filePicker, "Image Chooser");
+        Intent chooserIntent = Intent.createChooser(filePicker, "File Chooser");
 
         // Set camera intent to file chooser
-        chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Parcelable[] { captureIntent });
-        // NEW PART
-
+        chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Parcelable[] { takePictureIntent, takeVideoIntent });
 
         Activity currentActivity = getCurrentActivity();
         if (currentActivity == null) {
@@ -163,21 +159,12 @@ public class RNWebViewModule extends ReactContextBaseJavaModule implements Activ
     public boolean startFileChooserIntent(ValueCallback<Uri[]> filePathCallback, Intent intentChoose) {
         Log.d(REACT_CLASS, "Open new file dialog");
 
-        // if (mUploadMessageArr != null) {
-        //     mUploadMessageArr.onReceiveValue(null);
-        //     mUploadMessageArr = null;
-        // }
-        //
-        // mUploadMessageArr = filePathCallback;
-
         Activity currentActivity = getCurrentActivity();
         if (currentActivity == null) {
             Log.w(REACT_CLASS, "No context available");
             return false;
         }
 
-
-        // NEW CODE
         // Double check that we don't have any existing callbacks
         if (mFilePathCallback != null) {
           mFilePathCallback.onReceiveValue(null);
@@ -186,6 +173,7 @@ public class RNWebViewModule extends ReactContextBaseJavaModule implements Activ
         mFilePathCallback = filePathCallback;
 
         Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        Intent takeVideoIntent = new Intent(MediaStore.ACTION_VIDEO_CAPTURE);
 
         if (takePictureIntent.resolveActivity(currentActivity.getPackageManager()) != null) {
           // Create the File where the photo should go
@@ -209,23 +197,18 @@ public class RNWebViewModule extends ReactContextBaseJavaModule implements Activ
           }
         }
 
-        // Intent contentSelectionIntent = new Intent(Intent.ACTION_GET_CONTENT);
-        // contentSelectionIntent.addCategory(Intent.CATEGORY_OPENABLE);
-        // contentSelectionIntent.setType("image/*");
-
         Intent[] intentArray;
 
         if (takePictureIntent != null) {
-          intentArray = new Intent[]{takePictureIntent};
+          intentArray = new Intent[]{takePictureIntent, takeVideoIntent};
         } else {
           intentArray = new Intent[0];
         }
 
         Intent chooserIntent = new Intent(Intent.ACTION_CHOOSER);
         chooserIntent.putExtra(Intent.EXTRA_INTENT, intentChoose);
-        chooserIntent.putExtra(Intent.EXTRA_TITLE, "Image Chooser");
+        chooserIntent.putExtra(Intent.EXTRA_TITLE, "File Chooser");
         chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, intentArray);
-        // NEW CODE END
 
         try {
             currentActivity.startActivityForResult(chooserIntent, REQUEST_SELECT_FILE, new Bundle());
@@ -263,11 +246,6 @@ public class RNWebViewModule extends ReactContextBaseJavaModule implements Activ
             mUploadMessage = null;
             mCapturedImageURI = null;
         } else if (requestCode == REQUEST_SELECT_FILE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            // if (mUploadMessageArr == null) return;
-            //
-            // mUploadMessageArr.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
-            // mUploadMessageArr = null;
-
             if (requestCode != REQUEST_SELECT_FILE || mFilePathCallback == null) {
                 return;
             }

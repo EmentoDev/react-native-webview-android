@@ -109,6 +109,11 @@ public class RNWebViewManager extends SimpleViewManager<RNWebView> {
         view.getSettings().setJavaScriptEnabled(javaScriptEnabled);
     }
 
+    @ReactProp(name = "useWideViewPort", defaultBoolean = false)
+    public void setUseWideViewPort(RNWebView view, boolean useWideViewPort) {
+        view.getSettings().setUseWideViewPort(useWideViewPort);
+    }
+
     @ReactProp(name = "userAgent")
     public void setUserAgent(RNWebView view, @Nullable String userAgent) {
         if(userAgent != null) view.getSettings().setUserAgentString(userAgent);

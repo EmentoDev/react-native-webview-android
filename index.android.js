@@ -34,7 +34,8 @@ var WebViewAndroid = createClass({
     allowUrlRedirect: PropTypes.bool,
     builtInZoomControls: PropTypes.bool,
     onNavigationStateChange: PropTypes.func,
-    onMessage: PropTypes.func
+    onMessage: PropTypes.func,
+    useWideViewPort: PropTypes.bool
   },
   _onMessage: function(event) {
     if (this.props.onMessage) {

@@ -54,11 +54,11 @@ class RNWebView extends WebView implements LifecycleEventListener {
     public void linkBridge() {
       loadUrl("javascript:(" +
         "window.originalPostMessage = window.postMessage," +
-        "window.postMessage = function(data) {" +
-          "if(data && data.includes('Meteor._setImmediate') || data && data.data && data.data.includes('Meteor._setImmediate')){" +
-            "window.originalPostMessage(data)" +
+        "window.postMessage = function(data, origin) {" +
+          "if(data && data.data && data.data.includes('Meteor._setImmediate')){" +
+            "window.originalPostMessage(JSON.stringify(data), origin)" +
           "} else {" +
-          BRIDGE_NAME + ".postMessage(JSON.stringify(data));" +
+            BRIDGE_NAME + ".postMessage(JSON.stringify(data));" +
           "}" +
         "}" +
       ")");

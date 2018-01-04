@@ -2,9 +2,18 @@ package com.burnweb.rnwebview;
 
 import android.annotation.SuppressLint;
 
+import android.app.Activity;
+import android.content.Context;
+import android.content.pm.ActivityInfo;
+import android.graphics.Color;
 import android.net.Uri;
 import android.graphics.Bitmap;
 import android.os.Build;
+import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.webkit.GeolocationPermissions;
 import android.webkit.JsResult;
 import android.webkit.ValueCallback;
@@ -15,6 +24,7 @@ import android.webkit.WebViewClient;
 import android.webkit.JavascriptInterface;
 import android.content.Intent;
 import android.content.ActivityNotFoundException;
+import android.widget.FrameLayout;
 
 import com.facebook.react.common.SystemClock;
 import com.facebook.react.bridge.LifecycleEventListener;
@@ -32,36 +42,46 @@ class RNWebView extends WebView implements LifecycleEventListener {
     private String injectedJavaScript = null;
     private boolean allowUrlRedirect = false;
 
+    private Activity mActivity;
+    private View mWebView;
+    private View mVideoView;
+    private ThemedReactContext mContext;
+    private WebChromeClient.CustomViewCallback mCustomViewCallback;
+    private FrameLayout mFullscreenContainer;
+
+    private final FrameLayout.LayoutParams FULLSCREEN_LAYOUT_PARAMS = new FrameLayout.LayoutParams(
+            LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+
     protected static final String BRIDGE_NAME = "__REACT_WEB_VIEW_BRIDGE";
 
     protected class ReactWebViewBridge {
-      RNWebView mContext;
+        RNWebView mContext;
 
-      ReactWebViewBridge(RNWebView c) {
-        mContext = c;
-      }
+        ReactWebViewBridge(RNWebView c) {
+            mContext = c;
+        }
 
-      @JavascriptInterface
-      public void postMessage(String message) {
-        mContext.onMessage(message);
-      }
+        @JavascriptInterface
+        public void postMessage(String message) {
+            mContext.onMessage(message);
+        }
     }
 
     protected ReactWebViewBridge createReactWebViewBridge(RNWebView webView) {
-      return new ReactWebViewBridge(webView);
+        return new ReactWebViewBridge(webView);
     }
 
     public void linkBridge() {
-      loadUrl("javascript:(" +
-        "window.originalPostMessage = window.postMessage;" +
-        "window.postMessage = function(data, origin) {" +
-          "if(data && data.data && data.data.includes('Meteor._setImmediate')){" +
-            "window.originalPostMessage(JSON.stringify(data), origin)" +
-          "} else {" +
-            BRIDGE_NAME + ".postMessage(JSON.stringify(data));" +
-          "}" +
-        "}" +
-      ")");
+        loadUrl("javascript:(" +
+                "window.originalPostMessage = window.postMessage;" +
+                "window.postMessage = function(data, origin) {" +
+                "if(data && data.data && data.data.includes('Meteor._setImmediate')){" +
+                "window.originalPostMessage(JSON.stringify(data), origin)" +
+                "} else {" +
+                BRIDGE_NAME + ".postMessage(JSON.stringify(data));" +
+                "}" +
+                "}" +
+                ")");
     }
 
     protected class EventWebClient extends WebViewClient {
@@ -104,6 +124,13 @@ class RNWebView extends WebView implements LifecycleEventListener {
     }
 
     protected class CustomWebChromeClient extends WebChromeClient {
+        public CustomWebChromeClient(Activity activity, WebView webView) {
+            mActivity = activity;
+            mWebView = webView;
+        }
+
+        public CustomWebChromeClient() {}
+
         @Override
         public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
             getModule().showAlert(url, message, result);
@@ -121,6 +148,40 @@ class RNWebView extends WebView implements LifecycleEventListener {
         public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
             return getModule().startFileChooserIntent(filePathCallback, fileChooserParams.createIntent());
         }
+
+        @Override
+        public void onShowCustomView(View view, CustomViewCallback callback) {
+            if (mVideoView != null) {
+                callback.onCustomViewHidden();
+                return;
+            }
+
+            mVideoView = view;
+            mCustomViewCallback = callback;
+
+            FrameLayout decor = (FrameLayout) mActivity.getWindow().getDecorView();
+            decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_IMMERSIVE);
+            mFullscreenContainer = new FullscreenHolder(mActivity);
+            mFullscreenContainer.addView(view, FULLSCREEN_LAYOUT_PARAMS);
+            decor.addView(mFullscreenContainer, FULLSCREEN_LAYOUT_PARAMS);
+
+            mActivity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+        }
+
+        @Override
+        public void onHideCustomView() {
+            if (mVideoView == null) return;
+
+            FrameLayout decor = (FrameLayout) mActivity.getWindow().getDecorView();
+            decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+            decor.removeView(mFullscreenContainer);
+            mFullscreenContainer = null;
+            mVideoView = null;
+            mCustomViewCallback.onCustomViewHidden();
+            mActivity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        }
     }
 
     protected class GeoWebChromeClient extends CustomWebChromeClient {
@@ -132,6 +193,8 @@ class RNWebView extends WebView implements LifecycleEventListener {
 
     public RNWebView(RNWebViewManager viewManager, ThemedReactContext reactContext) {
         super(reactContext);
+
+        mContext = reactContext;
 
         mViewManager = viewManager;
         mEventDispatcher = reactContext.getNativeModule(UIManagerModule.class).getEventDispatcher();
@@ -192,7 +255,7 @@ class RNWebView extends WebView implements LifecycleEventListener {
     }
 
     public CustomWebChromeClient getCustomClient() {
-        return new CustomWebChromeClient();
+        return new CustomWebChromeClient(this.mContext.getCurrentActivity(), this);
     }
 
     public GeoWebChromeClient getGeoClient() {
@@ -229,4 +292,17 @@ class RNWebView extends WebView implements LifecycleEventListener {
         mEventDispatcher.dispatchEvent(new OnMessageEvent(getId(), jsParamaters));
     }
 
+    static class FullscreenHolder extends FrameLayout {
+
+        public FullscreenHolder(Context ctx) {
+            super(ctx);
+            setBackgroundColor(ctx.getResources().getColor(android.R.color.black));
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent evt) {
+            return true;
+        }
+
+    }
 }

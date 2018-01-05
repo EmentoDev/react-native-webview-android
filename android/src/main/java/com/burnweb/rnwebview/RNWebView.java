@@ -167,7 +167,7 @@ class RNWebView extends WebView implements LifecycleEventListener {
             mFullscreenContainer.addView(view, FULLSCREEN_LAYOUT_PARAMS);
             decor.addView(mFullscreenContainer, FULLSCREEN_LAYOUT_PARAMS);
 
-            mActivity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            mActivity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
         }
 
         @Override

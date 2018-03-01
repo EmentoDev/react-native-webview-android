@@ -41,6 +41,7 @@ class RNWebView extends WebView implements LifecycleEventListener {
     private String baseUrl = "file:///";
     private String injectedJavaScript = null;
     private boolean allowUrlRedirect = false;
+    private int systemUIVisibilityFlags = 0;
 
     private Activity mActivity;
     private View mWebView;
@@ -160,6 +161,7 @@ class RNWebView extends WebView implements LifecycleEventListener {
             mCustomViewCallback = callback;
 
             FrameLayout decor = (FrameLayout) mActivity.getWindow().getDecorView();
+            systemUIVisibilityFlags = decor.getSystemUiVisibility();
             decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                     | View.SYSTEM_UI_FLAG_FULLSCREEN
                     | View.SYSTEM_UI_FLAG_IMMERSIVE);
@@ -175,7 +177,7 @@ class RNWebView extends WebView implements LifecycleEventListener {
             if (mVideoView == null) return;
 
             FrameLayout decor = (FrameLayout) mActivity.getWindow().getDecorView();
-            decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+            decor.setSystemUiVisibility(systemUIVisibilityFlags);
             decor.removeView(mFullscreenContainer);
             mFullscreenContainer = null;
             mVideoView = null;
